@@ -6,6 +6,9 @@ A mobile-first rain dashboard for window-cleaning rounds in Minster-in-Thanet.
 
 - Fetches a three-day forecast from Open-Meteo without an API key.
 - Shows a practical 12-hour working timeline in 15-minute blocks.
+- Scores the usual 09:00–13:00 round and the 13:00–17:00 recovery slot.
+- Recommends whether no afternoon cover, one-person cover, or two-person cover is worth keeping available.
+- Uses hourly rain probability to flag shower-risk periods even when rainfall totals are low.
 - Flags prolonged heavier rain using editable thresholds.
 - Displays an animated Rain Viewer radar overlay centred on Minster.
 - Clearly distinguishes observed radar frames from future forecast data.

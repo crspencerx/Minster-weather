@@ -89,3 +89,20 @@ footer { padding: 0 18px 24px; color: var(--muted); font-size: .7rem; line-heigh
   .daily-card { display: block; }
   .daily-badge { display: inline-block; margin-top: 10px; }
 }
+.planner-panel { border-top: 4px solid var(--navy); }
+.planner-badge { padding: 6px 10px; border-radius: 99px; font-size: .74rem; font-weight: 800; }
+.planner-badge.dry { color: var(--green); background: var(--green-soft); }
+.planner-badge.caution { color: var(--amber); background: var(--amber-soft); }
+.planner-badge.stop { color: var(--red); background: var(--red-soft); }
+.slot-grid { display: grid; gap: 10px; margin-top: 13px; }
+.slot-card { padding: 13px; border: 1px solid var(--line); border-radius: 13px; background: #fbfdff; }
+.slot-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.slot-card h3 { margin: 0 0 9px; font-size: 1rem; }
+.slot-kicker { margin: 0 0 4px; color: var(--muted); font-size: .68rem; font-weight: 800; letter-spacing: .12em; }
+.slot-card strong { display: block; margin-bottom: 4px; font-size: .96rem; }
+.slot-card p { margin: 0; color: var(--muted); font-size: .79rem; line-height: 1.45; }
+.cover-recommendation { margin-top: 11px; padding: 13px; border-radius: 13px; background: var(--bg); }
+.cover-recommendation strong { display: block; margin: 3px 0 4px; font-size: 1rem; }
+.cover-recommendation p, .planner-note { margin: 0; color: var(--muted); font-size: .79rem; line-height: 1.45; }
+.planner-note { margin-top: 10px; }
+@media (min-width: 600px) { .slot-grid { grid-template-columns: 1fr 1fr; } }
