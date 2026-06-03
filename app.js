@@ -5,6 +5,9 @@ const SETTINGS_KEY = 'minster-weather-rules-v2';
 const MORNING_SLOT = { startHour: 9, endHour: 13, label: '09:00–13:00' };
 const RECOVERY_SLOT = { startHour: 13, endHour: 17, label: '13:00–17:00' };
 const SHOWER_RISK_PROBABILITY = 45;
+const IMMEDIATE_HEAVY_RATE = 1.2;
+const BRIEF_SHOWER_MINUTES = 15;
+const ADVICE_LOOKAHEAD_HOURS = 2;
 
 const defaultSettings = { cautionThreshold: 0.2, stopThreshold: 0.7, prolongedMinutes: 30, advancedApiBase: '' };
 let settings = loadSettings();
@@ -18,6 +21,7 @@ let forecastData;
 let nowcastData = null;
 let metOfficeData = null;
 let advancedErrors = [];
+let quarterHourPoints = [];
 
 function advancedApiBase() { return String(settings.advancedApiBase || '').trim().replace(/\/$/, ''); }
 
@@ -91,6 +95,7 @@ async function fetchAdvancedData() {
   if (metOfficeResult.status === 'fulfilled') metOfficeData = metOfficeResult.value;
   else { metOfficeData = null; advancedErrors.push(`Met Office: ${metOfficeResult.reason.message}`); }
   renderAdvancedPanels();
+  renderWorkAdvice();
 }
 
 async function checkJsonResponse(response) {
@@ -199,10 +204,117 @@ function renderAdvancedPanels() {
   $('advancedErrors').textContent = advancedErrors.length ? advancedErrors.join(' · ') : '';
   $('advancedErrors').classList.toggle('hidden', !advancedErrors.length);
 
+  renderWorkAdvice();
+
   if (nowcast?.event && nowcast.status === 'stop') {
     const minutesUntil = Math.max(0, Math.round((nowcast.event.start - new Date()) / 60000));
     if (minutesUntil <= 120) $('roundDecision').textContent = minutesUntil <= 0 ? 'No — nowcast shows rain' : `Finish by ${formatTime(nowcast.event.start)}`;
   }
+}
+
+
+function groupForecastRainEvents(points) {
+  const events = [];
+  let current = null;
+  points.forEach(point => {
+    const wet = point.rate >= settings.cautionThreshold;
+    if (wet) {
+      if (!current) {
+        current = {
+          start: point.time,
+          end: new Date(point.time.getTime() + 15 * 60000),
+          maxRate: point.rate,
+          blocks: 1
+        };
+      } else {
+        current.end = new Date(point.time.getTime() + 15 * 60000);
+        current.maxRate = Math.max(current.maxRate, point.rate);
+        current.blocks += 1;
+      }
+    } else if (current) {
+      events.push(current);
+      current = null;
+    }
+  });
+  if (current) events.push(current);
+  return events;
+}
+
+function workAdvice() {
+  const now = new Date();
+  const end = new Date(now.getTime() + ADVICE_LOOKAHEAD_HOURS * 3600000);
+  const points = quarterHourPoints.filter(point => point.time >= roundUpToQuarter(now) && point.time < end);
+  const forecastEvents = groupForecastRainEvents(points);
+  const riskBlocks = points.filter(point => point.probability >= SHOWER_RISK_PROBABILITY).length;
+  const nowRate = forecastData ? Number(forecastData.current.precipitation || 0) * (3600 / Number(forecastData.current.interval || 900)) : 0;
+
+  const rainbowEvents = nowcastData?.forecast
+    ? groupNowcastEvents(nowcastData.forecast).filter(event => event.end > now && event.start < end)
+    : [];
+  const event = rainbowEvents[0] || forecastEvents[0] || null;
+  const duration = event ? Math.max(1, Math.round((event.end - event.start) / 60000)) : 0;
+  const maxRate = event ? Number(event.maxRate || 0) : 0;
+  const currentlyWet = event ? event.start <= now : nowRate >= settings.cautionThreshold;
+  const minutesUntil = event ? Math.max(0, Math.round((event.start - now) / 60000)) : null;
+  const repeatedShowers = (rainbowEvents.length + forecastEvents.length >= 2) || riskBlocks >= 4;
+
+  if (nowRate >= IMMEDIATE_HEAVY_RATE || (currentlyWet && maxRate >= IMMEDIATE_HEAVY_RATE)) {
+    return {
+      status: 'stop',
+      heading: 'Stop cleaning for now',
+      detail: `Proper rain is showing over Minster${maxRate ? `, peaking around ${maxRate.toFixed(1)} mm/hour` : ''}. Wait for it to pass before beginning another job.`
+    };
+  }
+
+  if (event && maxRate >= settings.stopThreshold && duration >= settings.prolongedMinutes) {
+    const timing = currentlyWet ? `Rain is showing now until about ${formatTime(event.end)}` : `Rain is likely from about ${formatTime(event.start)}–${formatTime(event.end)}`;
+    return {
+      status: 'stop',
+      heading: 'Rain stop likely — do not begin another job',
+      detail: `${timing}. Expected duration: about ${duration} mins · peak around ${maxRate.toFixed(1)} mm/hour. Finish the current house if practical, then pause.`
+    };
+  }
+
+  if (event && maxRate >= settings.stopThreshold && duration <= BRIEF_SHOWER_MINUTES) {
+    const timing = currentlyWet ? 'A short shower is showing now' : `A short shower may arrive in about ${minutesUntil} mins`;
+    return {
+      status: 'caution',
+      heading: 'Brief shower likely — pause rather than cancel',
+      detail: `${timing}. It is expected to last around ${duration} mins, with a peak near ${maxRate.toFixed(1)} mm/hour. Avoid starting a fresh house just before it arrives.`
+    };
+  }
+
+  if (event && maxRate >= settings.cautionThreshold) {
+    const timing = currentlyWet ? 'Light rain is showing now' : `Light rain may arrive in about ${minutesUntil} mins`;
+    return {
+      status: 'caution',
+      heading: repeatedShowers ? 'Unsettled conditions — keep the afternoon recovery slot open' : 'Light rain risk — use judgement',
+      detail: `${timing}. The next spell looks around ${duration} mins long, peaking near ${maxRate.toFixed(1)} mm/hour. Check the radar before setting off or starting another job.`
+    };
+  }
+
+  if (repeatedShowers || riskBlocks >= 2) {
+    return {
+      status: 'caution',
+      heading: 'Unsettled conditions — keep the afternoon recovery slot open',
+      detail: 'No definite rain stop is showing yet, but shower risk is elevated during the next two hours. Continue cautiously and check the live radar between jobs.'
+    };
+  }
+
+  return {
+    status: 'dry',
+    heading: 'Carry on — no meaningful interruption showing',
+    detail: 'No rain stop or significant shower is currently showing for the next two hours. Keep an eye on the radar if nearby patches begin to build.'
+  };
+}
+
+function renderWorkAdvice() {
+  const advice = workAdvice();
+  $('workAdviceCard').className = `work-advice ${advice.status}`;
+  $('workAdviceBadge').className = `daily-badge ${advice.status}`;
+  $('workAdviceBadge').textContent = labelForClass(advice.status);
+  $('workAdviceHeading').textContent = advice.heading;
+  $('workAdviceDetail').textContent = advice.detail;
 }
 
 function buildHourlyProbabilityMap(data) {
@@ -331,6 +443,7 @@ function renderPlanner(points) {
 
 function renderForecast(data) {
   const points = buildQuarterHours(data);
+  quarterHourPoints = points;
   const now = new Date();
   const start = roundUpToQuarter(now);
   const upcoming = points.filter(point => point.time >= start).slice(0, 48);

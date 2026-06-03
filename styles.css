@@ -118,3 +118,9 @@ footer { padding: 0 18px 24px; color: var(--muted); font-size: .7rem; line-heigh
 .advanced-errors { margin: 12px 0 0; padding: 10px 12px; border-radius: 10px; background: #fff0ef; color: #8a241f; font-size: .84rem; line-height: 1.4; }
 .settings-help { margin: -4px 0 14px; color: #607080; font-size: .82rem; line-height: 1.4; }
 .settings-panel input[type=url] { width: min(100%, 330px); }
+
+.work-advice { margin-bottom: 14px; padding: 16px; border-radius: 18px; box-shadow: var(--shadow); border-left: 7px solid var(--blue); background: var(--panel); }
+.work-advice.dry { border-left-color: var(--green); background: linear-gradient(120deg, white, var(--green-soft)); }
+.work-advice.caution { border-left-color: var(--amber); background: linear-gradient(120deg, white, var(--amber-soft)); }
+.work-advice.stop { border-left-color: var(--red); background: linear-gradient(120deg, white, var(--red-soft)); }
+.work-advice .panel-copy { margin-bottom: 0; }

@@ -57,3 +57,15 @@ The address is saved on your phone. API keys remain private inside Cloudflare.
 - Forecasts remain uncertain. The dashboard is a work-planning aid, not a guarantee for an individual property.
 - The advanced feeds degrade gracefully: Open-Meteo and the Rain Viewer observed-radar map remain available if either additional feed fails.
 - The Met Office response normaliser is written defensively around its GeoJSON time-series response. If the provider changes field names, the Worker may need a small adjustment.
+
+
+## v4.1 plain-English work advice
+
+This frontend-only update adds a **What to do next** card. It uses the existing Open-Meteo forecast and the connected Rainbow nowcast to distinguish:
+
+- Carry on — no meaningful interruption showing
+- Brief shower likely — pause rather than cancel
+- Rain stop likely — do not begin another job
+- Unsettled conditions — keep the afternoon recovery slot open
+
+No Cloudflare Worker changes or new API keys are required.
