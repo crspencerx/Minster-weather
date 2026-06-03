@@ -1,44 +1,59 @@
-# Minster Round Weather
+# Minster Round Weather v4
 
 A mobile-first rain dashboard for window-cleaning rounds in Minster-in-Thanet.
 
-## What it does
+## What works immediately
 
-- Fetches a three-day forecast from Open-Meteo without an API key.
-- Shows a practical 12-hour working timeline in 15-minute blocks.
-- Scores the usual 09:00–13:00 round and the 13:00–17:00 recovery slot.
-- Recommends whether no afternoon cover, one-person cover, or two-person cover is worth keeping available.
-- Uses hourly rain probability to flag shower-risk periods even when rainfall totals are low.
-- Flags prolonged heavier rain using editable thresholds.
-- Displays an animated Rain Viewer radar overlay centred on Minster.
-- Clearly distinguishes observed radar frames from future forecast data.
-- Can be installed to a phone home screen when hosted over HTTPS.
+- Open-Meteo three-day forecast with a 15-minute working timeline.
+- 09:00–13:00 main-round planning and a 13:00–17:00 recovery-slot recommendation.
+- Animated Rain Viewer observed-radar map centred on Minster.
+- Editable rain thresholds.
 
-## Run it locally
+## Advanced features included in v4
 
-From this folder, start a tiny static web server:
+The website is ready to connect to a private Cloudflare Worker proxy. Once connected, it adds:
 
-```bash
-python3 -m http.server 8000
-```
+- Rainbow Weather minute-by-minute precipitation nowcasting for the next four hours.
+- Estimated rain arrival time, duration, and peak intensity.
+- Met Office Weather DataHub Global Spot hourly data as a second opinion.
+- A confidence card showing whether Open-Meteo and the Met Office broadly agree.
 
-Then open `http://localhost:8000` in a browser.
+The proxy is important: never put either provider's API key into public GitHub Pages files.
 
-Opening `index.html` directly may also work, but a local web server is better and is required for installable PWA behaviour.
+## Update the GitHub Pages site
 
-## Put it online free
+Upload the files from this `minster-weather` folder into the root of your existing GitHub repository and commit the changes. The standard dashboard will continue to work before the proxy is connected.
 
-The simplest approach is GitHub Pages:
+## Connect the advanced feeds
 
-1. Create a new GitHub repository.
-2. Upload all files from this folder.
-3. In the repository settings, open **Pages**.
-4. Deploy from the `main` branch and root folder.
-5. Open the HTTPS address on your phone and choose **Add to Home screen**.
+### 1. Obtain the two API keys
 
-## Current limitations
+- Create a Rainbow Weather developer account and obtain an API token.
+- Register with Met Office Weather DataHub, subscribe to the free Site-Specific Global Spot plan, and obtain an API key.
 
-- Rain Viewer public radar frames are observations from the previous two hours, not future radar predictions.
-- Open-Meteo 15-minute rainfall values may be interpolated in regions without native high-resolution 15-minute model data.
-- Forecast and radar feeds are useful decision aids, not guarantees for an individual property.
-- This starter version uses free endpoints for evaluation and personal use. Check commercial licensing before publishing it as a public business service.
+### 2. Create a Cloudflare Worker
+
+Create a new Cloudflare Worker using the code in `worker/worker.js`.
+
+Add these secrets in the Worker's settings:
+
+- `RAINBOW_API_TOKEN`
+- `METOFFICE_API_KEY`
+
+Add this ordinary environment variable:
+
+- `ALLOWED_ORIGIN` = `https://crspencerx.github.io`
+
+Deploy the Worker and copy its address, such as `https://minster-weather-proxy.example.workers.dev`.
+
+### 3. Paste the Worker address into the dashboard
+
+Open the dashboard, tap **Rain rules**, paste the Worker address into **Private weather proxy address**, and save.
+
+The address is saved on your phone. API keys remain private inside Cloudflare.
+
+## Notes
+
+- Forecasts remain uncertain. The dashboard is a work-planning aid, not a guarantee for an individual property.
+- The advanced feeds degrade gracefully: Open-Meteo and the Rain Viewer observed-radar map remain available if either additional feed fails.
+- The Met Office response normaliser is written defensively around its GeoJSON time-series response. If the provider changes field names, the Worker may need a small adjustment.

@@ -106,3 +106,15 @@ footer { padding: 0 18px 24px; color: var(--muted); font-size: .7rem; line-heigh
 .cover-recommendation p, .planner-note { margin: 0; color: var(--muted); font-size: .79rem; line-height: 1.45; }
 .planner-note { margin-top: 10px; }
 @media (min-width: 600px) { .slot-grid { grid-template-columns: 1fr 1fr; } }
+
+
+.setup-notice { margin: 12px 0 16px; padding: 12px 14px; border-radius: 12px; background: #fff7dc; border: 1px solid #efcf68; color: #664d03; font-size: .9rem; line-height: 1.45; }
+.advanced-grid { margin-top: 14px; }
+.daily-badge.muted, .confidence-badge.muted { background: #edf1f4; color: #50606f; }
+.confidence-badge { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; border-radius: 999px; padding: 5px 9px; font-size: .74rem; font-weight: 800; white-space: nowrap; }
+.confidence-badge.high { background: #dff5e7; color: #116530; }
+.confidence-badge.medium { background: #fff1bf; color: #725400; }
+.confidence-badge.low { background: #ffe1df; color: #8a241f; }
+.advanced-errors { margin: 12px 0 0; padding: 10px 12px; border-radius: 10px; background: #fff0ef; color: #8a241f; font-size: .84rem; line-height: 1.4; }
+.settings-help { margin: -4px 0 14px; color: #607080; font-size: .82rem; line-height: 1.4; }
+.settings-panel input[type=url] { width: min(100%, 330px); }

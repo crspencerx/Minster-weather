@@ -1,12 +1,12 @@
 const LOCATION = { name: 'Minster-in-Thanet', lat: 51.3349, lon: 1.3147 };
 const FORECAST_URL = `https://api.open-meteo.com/v1/forecast?latitude=${LOCATION.lat}&longitude=${LOCATION.lon}&current=temperature_2m,precipitation,rain,showers,weather_code,wind_speed_10m&hourly=precipitation_probability,precipitation,rain,showers,weather_code,wind_speed_10m,wind_gusts_10m&minutely_15=precipitation,rain,showers&timezone=Europe%2FLondon&forecast_days=3`;
 const RADAR_URL = 'https://api.rainviewer.com/public/weather-maps.json';
-const SETTINGS_KEY = 'minster-weather-rules-v1';
+const SETTINGS_KEY = 'minster-weather-rules-v2';
 const MORNING_SLOT = { startHour: 9, endHour: 13, label: '09:00–13:00' };
 const RECOVERY_SLOT = { startHour: 13, endHour: 17, label: '13:00–17:00' };
 const SHOWER_RISK_PROBABILITY = 45;
 
-const defaultSettings = { cautionThreshold: 0.2, stopThreshold: 0.7, prolongedMinutes: 30 };
+const defaultSettings = { cautionThreshold: 0.2, stopThreshold: 0.7, prolongedMinutes: 30, advancedApiBase: '' };
 let settings = loadSettings();
 let map;
 let radarLayer;
@@ -15,6 +15,11 @@ let radarHost = '';
 let radarFrameIndex = 0;
 let radarTimer;
 let forecastData;
+let nowcastData = null;
+let metOfficeData = null;
+let advancedErrors = [];
+
+function advancedApiBase() { return String(settings.advancedApiBase || '').trim().replace(/\/$/, ''); }
 
 function $(id) { return document.getElementById(id); }
 function loadSettings() {
@@ -65,6 +70,139 @@ async function fetchForecast() {
   if (!response.ok) throw new Error(`Forecast request failed (${response.status})`);
   forecastData = await response.json();
   renderForecast(forecastData);
+}
+
+
+async function fetchAdvancedData() {
+  const base = advancedApiBase();
+  advancedErrors = [];
+  if (!base) {
+    nowcastData = null;
+    metOfficeData = null;
+    renderAdvancedPanels();
+    return;
+  }
+  const [nowcastResult, metOfficeResult] = await Promise.allSettled([
+    fetch(`${base}/api/nowcast`, { cache: 'no-store' }).then(checkJsonResponse),
+    fetch(`${base}/api/metoffice`, { cache: 'no-store' }).then(checkJsonResponse)
+  ]);
+  if (nowcastResult.status === 'fulfilled') nowcastData = nowcastResult.value;
+  else { nowcastData = null; advancedErrors.push(`Rainbow nowcast: ${nowcastResult.reason.message}`); }
+  if (metOfficeResult.status === 'fulfilled') metOfficeData = metOfficeResult.value;
+  else { metOfficeData = null; advancedErrors.push(`Met Office: ${metOfficeResult.reason.message}`); }
+  renderAdvancedPanels();
+}
+
+async function checkJsonResponse(response) {
+  let body = null;
+  try { body = await response.json(); } catch { /* keep null */ }
+  if (!response.ok) throw new Error(body?.error || `request failed (${response.status})`);
+  return body;
+}
+
+function groupNowcastEvents(forecast) {
+  const wet = (forecast || []).map(item => ({
+    start: new Date(Number(item.timestampBegin) * 1000),
+    end: new Date(Number(item.timestampEnd) * 1000),
+    rate: Number(item.precipRate || 0),
+    type: item.precipType || 'rain'
+  }));
+  const events = [];
+  let current = null;
+  wet.forEach(item => {
+    const relevant = item.rate >= settings.cautionThreshold;
+    if (relevant) {
+      if (!current || item.start.getTime() - current.end.getTime() > 5 * 60000) {
+        if (current) events.push(current);
+        current = { start: item.start, end: item.end, maxRate: item.rate, wetMinutes: 1, type: item.type };
+      } else {
+        current.end = item.end;
+        current.maxRate = Math.max(current.maxRate, item.rate);
+        current.wetMinutes += 1;
+      }
+    } else if (current && item.start.getTime() - current.end.getTime() > 5 * 60000) {
+      events.push(current); current = null;
+    }
+  });
+  if (current) events.push(current);
+  return events;
+}
+
+function nowcastSummary() {
+  if (!nowcastData?.forecast) return null;
+  const now = new Date();
+  const events = groupNowcastEvents(nowcastData.forecast).filter(event => event.end > now);
+  const first = events[0];
+  if (!first) return { status: 'dry', title: 'No rain showing in the next 4 hours', detail: 'Rainbow nowcasting is not currently indicating a meaningful shower over Minster.', event: null };
+  const minutesUntil = Math.max(0, Math.round((first.start - now) / 60000));
+  const duration = Math.max(1, Math.round((first.end - first.start) / 60000));
+  const isStop = first.maxRate >= settings.stopThreshold && duration >= settings.prolongedMinutes;
+  const currentlyWet = first.start <= now;
+  const status = isStop ? 'stop' : 'caution';
+  const timing = currentlyWet ? 'Rain showing now' : `Rain may arrive in about ${minutesUntil} mins`;
+  return {
+    status,
+    title: timing,
+    detail: `Estimated spell ${formatTime(first.start)}–${formatTime(first.end)} · about ${duration} mins · peak ${first.maxRate.toFixed(1)} mm/hour.`,
+    event: first
+  };
+}
+
+function normalizeHour(date) { const d = new Date(date); d.setMinutes(0, 0, 0); return d.getTime(); }
+function metOfficeAgreement() {
+  if (!forecastData?.hourly || !metOfficeData?.hours?.length) return null;
+  const openMap = new Map();
+  forecastData.hourly.time.forEach((time, index) => openMap.set(normalizeHour(parseLocal(time)), Number(forecastData.hourly.precipitation[index] || 0)));
+  const start = new Date();
+  const end = new Date(start.getTime() + 12 * 3600000);
+  const compared = [];
+  metOfficeData.hours.forEach(hour => {
+    const date = new Date(hour.time);
+    if (date < start || date > end) return;
+    const openRate = openMap.get(normalizeHour(date));
+    if (openRate === undefined) return;
+    const metRate = Number(hour.precipitationRate || 0);
+    const openClass = classForRate(openRate);
+    const metClass = classForRate(metRate);
+    compared.push({ date, openRate, metRate, same: openClass === metClass, openClass, metClass });
+  });
+  if (!compared.length) return null;
+  const agree = compared.filter(item => item.same).length;
+  const fraction = agree / compared.length;
+  const confidence = fraction >= 0.8 ? 'high' : fraction >= 0.55 ? 'medium' : 'low';
+  const differences = compared.filter(item => !item.same).slice(0, 3).map(item => formatTime(item.date));
+  return { confidence, agree, total: compared.length, differences };
+}
+
+function renderAdvancedPanels() {
+  const setup = !advancedApiBase();
+  const nowcast = nowcastSummary();
+  const agreement = metOfficeAgreement();
+
+  $('advancedSetupNotice').classList.toggle('hidden', !setup);
+  $('nowcastBadge').className = `daily-badge ${setup ? 'muted' : (nowcast?.status || 'muted')}`;
+  $('nowcastBadge').textContent = setup ? 'Setup needed' : nowcast ? labelForClass(nowcast.status) : 'Unavailable';
+  $('nowcastHeading').textContent = setup ? 'Connect the private weather proxy' : nowcast?.title || 'Nowcast temporarily unavailable';
+  $('nowcastDetail').textContent = setup
+    ? 'Once connected, this card will show minute-by-minute rain arrival and estimated duration for the next four hours.'
+    : nowcast?.detail || 'The standard Open-Meteo forecast and Rain Viewer map are still working.';
+
+  $('confidenceBadge').className = `confidence-badge ${setup ? 'muted' : (agreement?.confidence || 'muted')}`;
+  $('confidenceBadge').textContent = setup ? 'Setup needed' : agreement ? `${agreement.confidence[0].toUpperCase()}${agreement.confidence.slice(1)} confidence` : 'Unavailable';
+  $('confidenceHeading').textContent = setup ? 'Met Office comparison not connected' : agreement ? `${agreement.agree} of ${agreement.total} hours broadly agree` : 'Waiting for comparable hourly data';
+  $('confidenceDetail').textContent = setup
+    ? 'The Met Office feed will act as a second opinion rather than silently replacing the current forecast.'
+    : agreement
+      ? (agreement.differences.length ? `The sources differ around ${agreement.differences.join(', ')}. Treat those times cautiously and check radar.` : 'Open-Meteo and the Met Office broadly agree across the next 12 hours.')
+      : 'The Met Office response loaded, but there was not enough overlapping hourly data to score agreement.';
+
+  $('advancedErrors').textContent = advancedErrors.length ? advancedErrors.join(' · ') : '';
+  $('advancedErrors').classList.toggle('hidden', !advancedErrors.length);
+
+  if (nowcast?.event && nowcast.status === 'stop') {
+    const minutesUntil = Math.max(0, Math.round((nowcast.event.start - new Date()) / 60000));
+    if (minutesUntil <= 120) $('roundDecision').textContent = minutesUntil <= 0 ? 'No — nowcast shows rain' : `Finish by ${formatTime(nowcast.event.start)}`;
+  }
 }
 
 function buildHourlyProbabilityMap(data) {
@@ -228,6 +366,7 @@ function renderForecast(data) {
   renderPlanner(points);
   renderTimeline(upcoming);
   renderDaily(data);
+  renderAdvancedPanels();
 }
 
 function renderTimeline(points) {
@@ -313,7 +452,7 @@ function pauseRadarAnimation() { clearInterval(radarTimer); radarTimer = null; $
 async function refreshAll() {
   $('refreshButton').classList.add('refreshing');
   clearError();
-  const results = await Promise.allSettled([fetchForecast(), fetchRadar()]);
+  const results = await Promise.allSettled([fetchForecast(), fetchRadar(), fetchAdvancedData()]);
   const failed = results.filter(result => result.status === 'rejected');
   if (failed.length) showError(`Some live data could not load: ${failed.map(result => result.reason.message).join(' · ')}. Try refreshing in a moment.`);
   $('refreshButton').classList.remove('refreshing');
@@ -327,16 +466,18 @@ $('radarPlayButton').addEventListener('click', () => radarTimer ? pauseRadarAnim
 $('settingsButton').addEventListener('click', () => { $('settingsPanel').classList.remove('hidden'); $('settingsPanel').setAttribute('aria-hidden', 'false'); $('settingsPanel').scrollIntoView({ behavior: 'smooth' }); });
 $('closeSettings').addEventListener('click', () => { $('settingsPanel').classList.add('hidden'); $('settingsPanel').setAttribute('aria-hidden', 'true'); });
 $('saveSettings').addEventListener('click', () => {
-  settings = { cautionThreshold: Number($('cautionThreshold').value), stopThreshold: Number($('stopThreshold').value), prolongedMinutes: Number($('prolongedMinutes').value) };
+  settings = { cautionThreshold: Number($('cautionThreshold').value), stopThreshold: Number($('stopThreshold').value), prolongedMinutes: Number($('prolongedMinutes').value), advancedApiBase: $('advancedApiBase').value.trim() };
   saveSettings();
   $('settingsPanel').classList.add('hidden'); $('settingsPanel').setAttribute('aria-hidden', 'true');
   if (forecastData) renderForecast(forecastData);
+  fetchAdvancedData();
 });
 
 function initialiseSettings() {
   $('cautionThreshold').value = settings.cautionThreshold;
   $('stopThreshold').value = settings.stopThreshold;
   $('prolongedMinutes').value = settings.prolongedMinutes;
+  $('advancedApiBase').value = settings.advancedApiBase || '';
 }
 
 initialiseSettings();
@@ -344,4 +485,5 @@ initialiseMap();
 refreshAll();
 setInterval(fetchForecast, 10 * 60 * 1000);
 setInterval(fetchRadar, 10 * 60 * 1000);
+setInterval(fetchAdvancedData, 10 * 60 * 1000);
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});

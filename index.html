@@ -86,6 +86,41 @@
       <p class="planner-note">This is a planning aid. Yellow blocks indicate shower risk or light rain, so radar is still worth checking before leaving.</p>
     </section>
 
+
+    <section class="panel advanced-panel">
+      <div class="panel-heading">
+        <div>
+          <p class="section-label">SMART RAIN GUIDANCE</p>
+          <h2>Nowcast and forecast confidence</h2>
+        </div>
+      </div>
+      <p id="advancedSetupNotice" class="setup-notice">Advanced feeds are ready to connect. Open <strong>Rain rules</strong>, paste your private proxy address, and save.</p>
+      <div class="slot-grid advanced-grid">
+        <article class="slot-card">
+          <div class="slot-card-top">
+            <div>
+              <p class="slot-kicker">RAINBOW NOWCAST</p>
+              <h3 id="nowcastHeading">Checking the next four hours…</h3>
+            </div>
+            <span id="nowcastBadge" class="daily-badge muted">—</span>
+          </div>
+          <p id="nowcastDetail">Loading minute-by-minute rain guidance…</p>
+        </article>
+        <article class="slot-card">
+          <div class="slot-card-top">
+            <div>
+              <p class="slot-kicker">SECOND OPINION</p>
+              <h3 id="confidenceHeading">Comparing forecast sources…</h3>
+            </div>
+            <span id="confidenceBadge" class="confidence-badge muted">—</span>
+          </div>
+          <p id="confidenceDetail">Loading Met Office comparison…</p>
+        </article>
+      </div>
+      <p id="advancedErrors" class="advanced-errors hidden"></p>
+      <p class="planner-note">Rainbow is used for short-range arrival guidance. The Met Office feed is a second opinion. The ordinary forecast and observed radar remain visible even if either advanced feed is temporarily unavailable.</p>
+    </section>
+
     <section class="panel">
       <div class="panel-heading">
         <div>
@@ -161,12 +196,18 @@
         Prolonged rain period
         <span><input id="prolongedMinutes" type="number" min="15" max="180" step="15" /> minutes</span>
       </label>
+
+      <label>
+        Private weather proxy address
+        <span><input id="advancedApiBase" type="url" inputmode="url" placeholder="https://your-worker.workers.dev" /></span>
+      </label>
+      <p class="settings-help">Leave this blank until you have deployed the private proxy. Never paste API keys into this page or your GitHub files.</p>
       <button id="saveSettings" class="primary-button" type="button">Save rain rules</button>
     </section>
   </main>
 
   <footer>
-    <p>Forecast data: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>. Radar data: <a href="https://www.rainviewer.com/" target="_blank" rel="noopener">Rain Viewer</a>. Map: <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>.</p>
+    <p>Forecast data: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>, with optional <a href="https://datahub.metoffice.gov.uk/" target="_blank" rel="noopener">Met Office Weather DataHub</a> comparison and <a href="https://rainbow.ai/" target="_blank" rel="noopener">Rainbow Weather</a> nowcasting. Radar data: <a href="https://www.rainviewer.com/" target="_blank" rel="noopener">Rain Viewer</a>. Map: <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>.</p>
   </footer>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
