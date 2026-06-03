@@ -1,0 +1,10 @@
+{
+  "name": "Minster Round Weather",
+  "short_name": "Round Weather",
+  "description": "A practical rain dashboard for window-cleaning rounds in Minster-in-Thanet.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#edf3f7",
+  "theme_color": "#0b2239",
+  "icons": []
+}

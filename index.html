@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b2239" />
+  <meta name="description" content="A practical rain dashboard for window-cleaning rounds in Minster-in-Thanet." />
+  <title>Minster Round Weather</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="preconnect" href="https://api.open-meteo.com" />
+  <link rel="preconnect" href="https://api.rainviewer.com" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIINfQ3WzMDZt3q6MZ2r6QlP4L9M2d1QxM=" crossorigin="" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">MINSTER WINDOW CLEANING</p>
+      <h1>Round Weather</h1>
+      <p class="subtitle">Minster-in-Thanet · CT12</p>
+    </div>
+    <button id="refreshButton" class="icon-button" aria-label="Refresh weather data" title="Refresh weather data">↻</button>
+  </header>
+
+  <main>
+    <section id="statusCard" class="status-card status-loading" aria-live="polite">
+      <div class="status-card-header">
+        <div>
+          <p class="section-label">RIGHT NOW</p>
+          <h2 id="statusHeading">Checking conditions…</h2>
+        </div>
+        <div id="statusIcon" class="status-icon">⌛</div>
+      </div>
+      <p id="statusSummary" class="status-summary">Loading the latest forecast for Minster.</p>
+      <div class="decision-grid">
+        <div>
+          <span class="decision-label">Start a 2-hour round?</span>
+          <strong id="roundDecision">—</strong>
+        </div>
+        <div>
+          <span class="decision-label">Next prolonged rain</span>
+          <strong id="nextStop">—</strong>
+        </div>
+      </div>
+      <p id="updatedAt" class="updated-at"></p>
+    </section>
+
+    <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <p class="section-label">NEXT 12 HOURS</p>
+          <h2>Working timeline</h2>
+        </div>
+        <button id="settingsButton" class="text-button" type="button">Rain rules</button>
+      </div>
+      <p class="panel-copy">Each block covers 15 minutes. Tap a block for the expected rainfall rate.</p>
+      <div class="timeline-legend" aria-hidden="true">
+        <span><i class="legend-dot dry"></i> Workable</span>
+        <span><i class="legend-dot caution"></i> Caution</span>
+        <span><i class="legend-dot stop"></i> Stop</span>
+      </div>
+      <div id="timeline" class="timeline" aria-label="12-hour working weather timeline"></div>
+      <div id="timelineDetail" class="timeline-detail">Tap a block to see details.</div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <p class="section-label">LIVE OBSERVATIONS</p>
+          <h2>Rain radar</h2>
+        </div>
+        <button id="radarPlayButton" class="text-button" type="button">Pause</button>
+      </div>
+      <p class="panel-copy">The radar animation shows observed rainfall during the previous two hours. It is not a future prediction.</p>
+      <div class="radar-shell">
+        <div id="radarMap" aria-label="Animated rain radar map centred on Minster"></div>
+        <div class="radar-controls">
+          <button id="radarBack" aria-label="Previous radar frame">‹</button>
+          <input id="radarSlider" aria-label="Radar time" type="range" min="0" max="0" value="0" />
+          <button id="radarForward" aria-label="Next radar frame">›</button>
+        </div>
+        <div id="radarTime" class="radar-time">Loading radar…</div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <p class="section-label">PLANNING</p>
+          <h2>Next three days</h2>
+        </div>
+      </div>
+      <div id="dailyCards" class="daily-cards"></div>
+    </section>
+
+    <section class="panel notes-panel">
+      <p class="section-label">HOW TO USE IT</p>
+      <h2>Forecast for planning, radar for judgement</h2>
+      <p>The working timeline uses forecast rainfall. The radar helps you judge whether a nearby shower is passing Minster, approaching it, or breaking up. Neither source can guarantee the exact minute rain begins at a particular property.</p>
+    </section>
+
+    <section id="settingsPanel" class="panel settings-panel hidden" aria-hidden="true">
+      <div class="panel-heading">
+        <div>
+          <p class="section-label">PERSONAL SETTINGS</p>
+          <h2>Rain rules</h2>
+        </div>
+        <button id="closeSettings" class="text-button" type="button">Close</button>
+      </div>
+      <p class="panel-copy">Tune these after using the dashboard during your rounds.</p>
+      <label>
+        Caution threshold
+        <span><input id="cautionThreshold" type="number" min="0" step="0.1" /> mm/hour</span>
+      </label>
+      <label>
+        Stop threshold
+        <span><input id="stopThreshold" type="number" min="0" step="0.1" /> mm/hour</span>
+      </label>
+      <label>
+        Prolonged rain period
+        <span><input id="prolongedMinutes" type="number" min="15" max="180" step="15" /> minutes</span>
+      </label>
+      <button id="saveSettings" class="primary-button" type="button">Save rain rules</button>
+    </section>
+  </main>
+
+  <footer>
+    <p>Forecast data: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>. Radar data: <a href="https://www.rainviewer.com/" target="_blank" rel="noopener">Rain Viewer</a>. Map: <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>.</p>
+  </footer>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="app.js"></script>
+</body>
+</html>
